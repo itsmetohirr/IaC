@@ -1,1 +1,4 @@
 /.DS_Store
+
+# CloudFormation parameters (may contain env-specific or sensitive values)
+parameters.json
