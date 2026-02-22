@@ -1,0 +1,228 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Subnet + Routing + Security Groups stack (existing VPC)
+
+Parameters:
+
+  AppName:
+    Type: String
+    Description: Application name (e.g., dash, api, portal)
+
+  TagEnvironment:
+    Type: String
+    AllowedValues: [dev, staging, prod]
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+
+  InternetGatewayId:
+    Type: String
+
+  # NatGatewayId:
+  #   Type: String
+
+  PublicSubnet1CIDR:
+    Type: String
+    Default: 10.0.1.0/24
+
+  PublicSubnet2CIDR:
+    Type: String
+    Default: 10.0.2.0/24
+
+  PrivateSubnet1CIDR:
+    Type: String
+    Default: 10.0.11.0/24
+
+  PrivateSubnet2CIDR:
+    Type: String
+    Default: 10.0.12.0/24
+
+
+Resources:
+
+# -------------------------------------------------------
+# Public Subnets
+# -------------------------------------------------------
+
+  PublicSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VpcId
+      CidrBlock: !Ref PublicSubnet1CIDR
+      AvailabilityZone: !Select [0, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-public-1-${TagEnvironment}
+
+  PublicSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VpcId
+      CidrBlock: !Ref PublicSubnet2CIDR
+      AvailabilityZone: !Select [1, !GetAZs '']
+      MapPublicIpOnLaunch: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-public-2-${TagEnvironment}
+
+
+# -------------------------------------------------------
+# Private Subnets
+# -------------------------------------------------------
+
+  PrivateSubnet1:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VpcId
+      CidrBlock: !Ref PrivateSubnet1CIDR
+      AvailabilityZone: !Select [0, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-private-1-${TagEnvironment}
+
+  PrivateSubnet2:
+    Type: AWS::EC2::Subnet
+    Properties:
+      VpcId: !Ref VpcId
+      CidrBlock: !Ref PrivateSubnet2CIDR
+      AvailabilityZone: !Select [1, !GetAZs '']
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-private-2-${TagEnvironment}
+
+
+# -------------------------------------------------------
+# Route Tables
+# -------------------------------------------------------
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-public-rt-${TagEnvironment}
+
+  PublicRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PublicRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGatewayId
+
+  PublicSubnet1Association:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet1
+      RouteTableId: !Ref PublicRouteTable
+
+  PublicSubnet2Association:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PublicSubnet2
+      RouteTableId: !Ref PublicRouteTable
+
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VpcId
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-private-rt-${TagEnvironment}
+
+  PrivateRoute:
+    Type: AWS::EC2::Route
+    Properties:
+      RouteTableId: !Ref PrivateRouteTable
+      DestinationCidrBlock: 0.0.0.0/0
+      NatGatewayId: !Ref NatGatewayId
+
+  PrivateSubnet1Association:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet1
+      RouteTableId: !Ref PrivateRouteTable
+
+  PrivateSubnet2Association:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet2
+      RouteTableId: !Ref PrivateRouteTable
+
+
+# -------------------------------------------------------
+# Security Groups
+# -------------------------------------------------------
+
+  ALBSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ALB Security Group
+      VpcId: !Ref VpcId
+      GroupName: !Sub ${AppName}-alb-sg-${TagEnvironment}
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 80
+          ToPort: 80
+          CidrIp: 0.0.0.0/0
+        - IpProtocol: tcp
+          FromPort: 443
+          ToPort: 443
+          CidrIp: 0.0.0.0/0
+
+  ECSTasksSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: ECS Tasks Security Group
+      VpcId: !Ref VpcId
+      GroupName: !Sub ${AppName}-ecs-tasks-sg-${TagEnvironment}
+      SecurityGroupIngress:
+        - IpProtocol: tcp
+          FromPort: 0
+          ToPort: 65535
+          SourceSecurityGroupId: !Ref ALBSecurityGroup
+
+Outputs:
+
+  VpcId:
+    Description: VPC ID (for cross-stack reference)
+    Value: !Ref VpcId
+    Export:
+      Name: !Sub ${AppName}-VpcId-${TagEnvironment}
+
+  PublicSubnet1:
+    Description: Public subnet 1 (for ALB)
+    Value: !Ref PublicSubnet1
+    Export:
+      Name: !Sub ${AppName}-PublicSubnet1-${TagEnvironment}
+
+  PublicSubnet2:
+    Description: Public subnet 2 (for ALB)
+    Value: !Ref PublicSubnet2
+    Export:
+      Name: !Sub ${AppName}-PublicSubnet2-${TagEnvironment}
+
+  PrivateSubnet1:
+    Description: Private subnet 1 (for ECS)
+    Value: !Ref PrivateSubnet1
+    Export:
+      Name: !Sub ${AppName}-private-1-${TagEnvironment}
+
+  PrivateSubnet2:
+    Description: Private subnet 2 (for ECS)
+    Value: !Ref PrivateSubnet2
+    Export:
+      Name: !Sub ${AppName}-private-2-${TagEnvironment}
+
+  ALBSecurityGroup:
+    Description: ALB security group
+    Value: !Ref ALBSecurityGroup
+    Export:
+      Name: !Sub ${AppName}-ALBSecurityGroup-${TagEnvironment}
+
+  ECSTasksSecurityGroup:
+    Description: ECS tasks security group
+    Value: !Ref ECSTasksSecurityGroup
+    Export:
+      Name: !Sub ${AppName}-ecs-tasks-sg-${TagEnvironment}

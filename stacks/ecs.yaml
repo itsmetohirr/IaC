@@ -1,0 +1,207 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: ECS stack - ECR, Cluster, Task Definition, Service, Logs, and IAM Roles
+
+Parameters:
+
+  AppName:
+    Type: String
+    Description: Application name (e.g., dash, api)
+
+  TagEnvironment:
+    Type: String
+    AllowedValues: [dev, staging, prod]
+
+  TagManagedBy:
+    Type: String
+    Default: cloudformation
+    AllowedValues: [cloudformation, manual]
+
+  ImageTag:
+    Type: String
+    Default: latest
+
+  ContainerPort:
+    Type: Number
+    Default: 3000
+
+  ContainerCpu:
+    Type: Number
+    Default: 256
+    AllowedValues: [256, 512, 1024, 2048, 4096]
+
+  ContainerMemory:
+    Type: Number
+    Default: 512
+    Description: Must be a valid Fargate combination with ContainerCpu (e.g. 512, 1024, 2048, 4096)
+
+  DesiredCount:
+    Type: Number
+    Default: 1
+
+  LogRetentionDays:
+    Type: Number
+    Default: 30
+
+  # Passed from parent (root) when used as nested stack
+  PrivateSubnet1Id:
+    Type: AWS::EC2::Subnet::Id
+    Description: Private subnet 1 (from Network stack)
+  PrivateSubnet2Id:
+    Type: AWS::EC2::Subnet::Id
+    Description: Private subnet 2 (from Network stack)
+  ECSTasksSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Description: ECS tasks security group (from Network stack)
+  TargetGroupArn:
+    Type: String
+    Description: Target group ARN (from ALB stack)
+
+
+Resources:
+
+# -------------------------------------------------------
+# ECR
+# -------------------------------------------------------
+
+  ECRRepository:
+    Type: AWS::ECR::Repository
+    Properties:
+      RepositoryName: !Sub ${AppName}-ecr-${TagEnvironment}
+      ImageScanningConfiguration:
+        ScanOnPush: true
+      LifecyclePolicy:
+        LifecyclePolicyText: |
+          {
+            "rules": [
+              {
+                "rulePriority": 1,
+                "description": "Keep last 10 images",
+                "selection": {
+                  "tagStatus": "any",
+                  "countType": "imageCountMoreThan",
+                  "countNumber": 10
+                },
+                "action": { "type": "expire" }
+              }
+            ]
+          }
+
+# -------------------------------------------------------
+# Logs
+# -------------------------------------------------------
+
+  LogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /ecs/${AppName}-${TagEnvironment}
+      RetentionInDays: !Ref LogRetentionDays
+
+# -------------------------------------------------------
+# IAM Roles
+# -------------------------------------------------------
+
+  TaskExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AppName}-task-execution-role-${TagEnvironment}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+
+  TaskRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AppName}-task-role-${TagEnvironment}
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ecs-tasks.amazonaws.com
+            Action: sts:AssumeRole
+
+# -------------------------------------------------------
+# ECS Cluster
+# -------------------------------------------------------
+
+  ECSCluster:
+    Type: AWS::ECS::Cluster
+    Properties:
+      ClusterName: !Sub ${AppName}-cluster-${TagEnvironment}
+      ClusterSettings:
+        - Name: containerInsights
+          Value: enabled
+
+# -------------------------------------------------------
+# Task Definition
+# -------------------------------------------------------
+
+  TaskDefinition:
+    Type: AWS::ECS::TaskDefinition
+    Properties:
+      Family: !Sub ${AppName}-task-${TagEnvironment}
+      NetworkMode: awsvpc
+      RequiresCompatibilities: [FARGATE]
+      Cpu: !Ref ContainerCpu
+      Memory: !Ref ContainerMemory
+      ExecutionRoleArn: !GetAtt TaskExecutionRole.Arn
+      TaskRoleArn: !GetAtt TaskRole.Arn
+      ContainerDefinitions:
+        - Name: !Sub ${AppName}-container-${TagEnvironment}
+          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECRRepository}:${ImageTag}
+          PortMappings:
+            - ContainerPort: !Ref ContainerPort
+          Essential: true
+          LogConfiguration:
+            LogDriver: awslogs
+            Options:
+              awslogs-group: !Ref LogGroup
+              awslogs-region: !Ref AWS::Region
+              awslogs-stream-prefix: ecs
+
+# -------------------------------------------------------
+# ECS Service
+# -------------------------------------------------------
+
+  ECSService:
+    Type: AWS::ECS::Service
+    Properties:
+      ServiceName: !Sub ${AppName}-service-${TagEnvironment}
+      Cluster: !Ref ECSCluster
+      TaskDefinition: !Ref TaskDefinition
+      DesiredCount: !Ref DesiredCount
+      LaunchType: FARGATE
+      HealthCheckGracePeriodSeconds: 60
+      NetworkConfiguration:
+        AwsvpcConfiguration:
+          AssignPublicIp: DISABLED
+          Subnets:
+            - !Ref PrivateSubnet1Id
+            - !Ref PrivateSubnet2Id
+          SecurityGroups:
+            - !Ref ECSTasksSecurityGroupId
+      LoadBalancers:
+        - ContainerName: !Sub ${AppName}-container-${TagEnvironment}
+          ContainerPort: !Ref ContainerPort
+          TargetGroupArn: !Ref TargetGroupArn
+      DeploymentConfiguration:
+        MinimumHealthyPercent: 100
+        MaximumPercent: 200
+
+Outputs:
+
+  ECRRepositoryUri:
+    Value: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECRRepository}
+
+  ECSCluster:
+    Value: !Ref ECSCluster
+
+  ECSService:
+    Value: !Ref ECSService
+    

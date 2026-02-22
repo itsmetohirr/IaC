@@ -1,0 +1,14 @@
+[
+  { "ParameterKey": "AppName", "ParameterValue": "myapp" },
+  { "ParameterKey": "EnvironmentName", "ParameterValue": "dev" },
+  { "ParameterKey": "VpcId", "ParameterValue": "vpc-xxxx" },
+  { "ParameterKey": "InternetGatewayId", "ParameterValue": "igw-xxxx" },
+  { "ParameterKey": "NatGatewayId", "ParameterValue": "nat-xxxx" },
+  { "ParameterKey": "DomainName", "ParameterValue": "tohir.online" },
+  { "ParameterKey": "ContainerPort", "ParameterValue": "80" },
+  { "ParameterKey": "ImageTag", "ParameterValue": "latest" },
+  { "ParameterKey": "ContainerCpu", "ParameterValue": "256" },
+  { "ParameterKey": "ContainerMemory", "ParameterValue": "512" },
+  { "ParameterKey": "DesiredCount", "ParameterValue": "1" },
+  { "ParameterKey": "LogRetentionDays", "ParameterValue": "30" }
+]

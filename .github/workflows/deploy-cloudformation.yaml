@@ -1,0 +1,84 @@
+name: Deploy CloudFormation
+
+on:
+  push:
+    branches: [main, staging, prod]
+    paths:
+      - 'root.yaml'
+      - 'stacks/**'
+      - '.github/workflows/deploy-cloudformation.yaml'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment (dev, staging, prod)'
+        required: true
+        default: 'dev'
+        type: choice
+        options:
+          - dev
+          - staging
+          - prod
+
+env:
+  AWS_REGION: eu-west-1
+  APP_NAME: myapp
+  CFN_ARTIFACTS_BUCKET: ${{ secrets.CFN_ARTIFACTS_BUCKET }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Determine environment
+        id: env
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "env=${{ github.event.inputs.environment }}" >> $GITHUB_OUTPUT
+          else
+            case "${{ github.ref_name }}" in
+              main) echo "env=dev" >> $GITHUB_OUTPUT ;;
+              staging) echo "env=staging" >> $GITHUB_OUTPUT ;;
+              prod) echo "env=prod" >> $GITHUB_OUTPUT ;;
+              *) echo "env=dev" >> $GITHUB_OUTPUT ;;
+            esac
+          fi
+
+      - name: Package templates
+        run: |
+          aws cloudformation package \
+            --template-file root.yaml \
+            --output-template-file packaged.yaml \
+            --s3-bucket $CFN_ARTIFACTS_BUCKET \
+            --region $AWS_REGION
+
+      - name: Deploy stack
+        run: |
+          ENVIRONMENT=${{ steps.env.outputs.env }}
+
+          aws cloudformation deploy \
+            --region $AWS_REGION \
+            --stack-name "$APP_NAME-$ENVIRONMENT" \
+            --template-file packaged.yaml \
+            --parameter-overrides file://environments/$ENVIRONMENT/parameters.json \
+            --capabilities CAPABILITY_NAMED_IAM CAPABILITY_AUTO_EXPAND \
+            --no-fail-on-empty-changeset
+
+      - name: Output stack info
+        if: success()
+        run: |
+          aws cloudformation describe-stacks \
+            --region $AWS_REGION \
+            --stack-name "$APP_NAME-${{ steps.env.outputs.env }}" \
+            --query 'Stacks[0].Outputs' --output table || true
+            

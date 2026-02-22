@@ -1,0 +1,170 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Root stack - orchestrates Network, ALB, and ECS nested stacks
+
+Parameters:
+
+  AppName:
+    Type: String
+    Description: Application name (e.g., dash, api)
+
+  EnvironmentName:
+    Type: String
+    AllowedValues:
+      - dev
+      - staging
+      - prod
+
+  TagManagedBy:
+    Type: String
+    Default: cloudformation
+    AllowedValues: [cloudformation, manual]
+
+  # -----------------------------
+  # Network
+  # -----------------------------
+
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+
+  InternetGatewayId:
+    Type: String
+
+  NatGatewayId:
+    Type: String
+
+  PublicSubnet1CIDR:
+    Type: String
+    Default: 10.0.1.0/24
+
+  PublicSubnet2CIDR:
+    Type: String
+    Default: 10.0.2.0/24
+
+  PrivateSubnet1CIDR:
+    Type: String
+    Default: 10.0.11.0/24
+
+  PrivateSubnet2CIDR:
+    Type: String
+    Default: 10.0.12.0/24
+
+  # -----------------------------
+  # ALB
+  # -----------------------------
+
+  DomainName:
+    Type: String
+    Default: ''
+
+  ContainerPort:
+    Type: Number
+    Default: 3000
+
+  # -----------------------------
+  # ECS
+  # -----------------------------
+
+  ImageTag:
+    Type: String
+    Default: latest
+
+  ContainerCpu:
+    Type: Number
+    Default: 256
+
+  ContainerMemory:
+    Type: Number
+    Default: 512
+
+  DesiredCount:
+    Type: Number
+    Default: 1
+
+  LogRetentionDays:
+    Type: Number
+    Default: 30
+
+
+Resources:
+
+# -------------------------------------------------------
+# Network Stack
+# -------------------------------------------------------
+
+  NetworkStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: stacks/network2.yaml
+      Parameters:
+        AppName: !Ref AppName
+        TagEnvironment: !Ref EnvironmentName
+        VpcId: !Ref VpcId
+        InternetGatewayId: !Ref InternetGatewayId
+        NatGatewayId: !Ref NatGatewayId
+        PublicSubnet1CIDR: !Ref PublicSubnet1CIDR
+        PublicSubnet2CIDR: !Ref PublicSubnet2CIDR
+        PrivateSubnet1CIDR: !Ref PrivateSubnet1CIDR
+        PrivateSubnet2CIDR: !Ref PrivateSubnet2CIDR
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-network-${EnvironmentName}
+
+# -------------------------------------------------------
+# ALB Stack
+# -------------------------------------------------------
+
+  ALBStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: NetworkStack
+    Properties:
+      TemplateURL: stacks/alb.yaml
+      Parameters:
+        AppName: !Ref AppName
+        EnvironmentName: !Ref EnvironmentName
+        DomainName: !Ref DomainName
+        ContainerPort: !Ref ContainerPort
+        PublicSubnet1Id: !GetAtt NetworkStack.Outputs.PublicSubnet1
+        PublicSubnet2Id: !GetAtt NetworkStack.Outputs.PublicSubnet2
+        VpcId: !GetAtt NetworkStack.Outputs.VpcId
+        ALBSecurityGroupId: !GetAtt NetworkStack.Outputs.ALBSecurityGroup
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-alb-${EnvironmentName}
+
+# -------------------------------------------------------
+# ECS Stack
+# -------------------------------------------------------
+
+  ECSStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn: [NetworkStack, ALBStack]
+    Properties:
+      TemplateURL: stacks/ecs.yaml
+      Parameters:
+        AppName: !Ref AppName
+        TagEnvironment: !Ref EnvironmentName
+        ImageTag: !Ref ImageTag
+        ContainerPort: !Ref ContainerPort
+        ContainerCpu: !Ref ContainerCpu
+        ContainerMemory: !Ref ContainerMemory
+        DesiredCount: !Ref DesiredCount
+        LogRetentionDays: !Ref LogRetentionDays
+        PrivateSubnet1Id: !GetAtt NetworkStack.Outputs.PrivateSubnet1
+        PrivateSubnet2Id: !GetAtt NetworkStack.Outputs.PrivateSubnet2
+        ECSTasksSecurityGroupId: !GetAtt NetworkStack.Outputs.ECSTasksSecurityGroup
+        TargetGroupArn: !GetAtt ALBStack.Outputs.TargetGroupArn
+      Tags:
+        - Key: Name
+          Value: !Sub ${AppName}-ecs-${EnvironmentName}
+
+
+Outputs:
+
+  ALBDNSName:
+    Description: Load balancer DNS
+    Value: !GetAtt ALBStack.Outputs.ALBDNSName
+
+  ECRRepositoryUri:
+    Description: ECR Repository URI
+    Value: !GetAtt ECSStack.Outputs.ECRRepositoryUri
+    
