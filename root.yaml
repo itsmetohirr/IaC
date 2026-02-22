@@ -29,9 +29,6 @@ Parameters:
   InternetGatewayId:
     Type: String
 
-  NatGatewayId:
-    Type: String
-
   PublicSubnet1CIDR:
     Type: String
     Default: 10.0.1.0/24
@@ -100,7 +97,6 @@ Resources:
         TagEnvironment: !Ref EnvironmentName
         VpcId: !Ref VpcId
         InternetGatewayId: !Ref InternetGatewayId
-        NatGatewayId: !Ref NatGatewayId
         PublicSubnet1CIDR: !Ref PublicSubnet1CIDR
         PublicSubnet2CIDR: !Ref PublicSubnet2CIDR
         PrivateSubnet1CIDR: !Ref PrivateSubnet1CIDR
