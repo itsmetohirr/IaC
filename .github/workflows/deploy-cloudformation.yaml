@@ -62,21 +62,25 @@ jobs:
             --s3-bucket $CFN_ARTIFACTS_BUCKET \
             --region $AWS_REGION
       
-      - name: Check stack status
-        id: stack
+      - name: Handle rollback-complete stack
         run: |
+          STACK_NAME="$APP_NAME-$ENVIRONMENT"
+
           STATUS=$(aws cloudformation describe-stacks \
-            --stack-name "$APP_NAME-$ENVIRONMENT" \
+            --stack-name "$STACK_NAME" \
             --query "Stacks[0].StackStatus" \
             --output text 2>/dev/null || echo "NOT_FOUND")
 
-          echo "status=$STATUS" >> $GITHUB_OUTPUT
+          echo "Current status: $STATUS"
 
-      - name: Delete stack if rollback complete
-        if: steps.stack.outputs.status == 'ROLLBACK_COMPLETE'
-        run: |
-          aws cloudformation delete-stack --stack-name "$APP_NAME-$ENVIRONMENT"
-          aws cloudformation wait stack-delete-complete --stack-name "$APP_NAME-$ENVIRONMENT"
+          if [ "$STATUS" = "ROLLBACK_COMPLETE" ]; then
+            echo "Stack in ROLLBACK_COMPLETE. Deleting..."
+            aws cloudformation delete-stack --stack-name "$STACK_NAME"
+            aws cloudformation wait stack-delete-complete --stack-name "$STACK_NAME"
+            echo "Stack deleted."
+          else
+            echo "No deletion needed."
+          fi
 
       - name: Deploy stack
         run: |
