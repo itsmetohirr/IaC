@@ -154,7 +154,7 @@ Resources:
       TaskRoleArn: !GetAtt TaskRole.Arn
       ContainerDefinitions:
         - Name: !Sub ${AppName}-container-${TagEnvironment}
-          Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ECRRepository}:${ImageTag}
+          Image: public.ecr.aws/docker/library/nginx:latest
           PortMappings:
             - ContainerPort: !Ref ContainerPort
           Essential: true
