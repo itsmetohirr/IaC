@@ -66,7 +66,9 @@ jobs:
         id: stack
         run: |
           ENVIRONMENT=${{ steps.env.outputs.env }}
-          
+          echo "APP_NAME=$APP_NAME"
+          echo "ENVIRONMENT=$ENVIRONMENT"
+          echo "STACK_NAME=$STACK_NAME"
           STATUS=$(aws cloudformation describe-stacks \
             --stack-name "$APP_NAME-$ENVIRONMENT" \
             --query "Stacks[0].StackStatus" \
