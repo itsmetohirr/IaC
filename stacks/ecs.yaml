@@ -180,7 +180,7 @@ Resources:
       HealthCheckGracePeriodSeconds: 60
       NetworkConfiguration:
         AwsvpcConfiguration:
-          AssignPublicIp: DISABLED
+          AssignPublicIp: ENABLED
           Subnets:
             - !Ref PublicSubnet1Id
             - !Ref PublicSubnet2Id
