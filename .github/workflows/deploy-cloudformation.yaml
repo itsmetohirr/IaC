@@ -64,7 +64,7 @@ jobs:
       
       - name: Handle rollback-complete stack
         run: |
-          STACK_NAME="$APP_NAME-$ENVIRONMENT"
+          STACK_NAME=$APP_NAME-$ENVIRONMENT
 
           STATUS=$(aws cloudformation describe-stacks \
             --stack-name "$STACK_NAME" \
