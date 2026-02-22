@@ -43,12 +43,12 @@ Parameters:
     Default: 30
 
   # Passed from parent (root) when used as nested stack
-  PrivateSubnet1Id:
+  PublicSubnet1Id:
     Type: AWS::EC2::Subnet::Id
-    Description: Private subnet 1 (from Network stack)
-  PrivateSubnet2Id:
+    Description: Public subnet 1 (from Network stack)
+  PublicSubnet2Id:
     Type: AWS::EC2::Subnet::Id
-    Description: Private subnet 2 (from Network stack)
+    Description: Public subnet 2 (from Network stack)
   ECSTasksSecurityGroupId:
     Type: AWS::EC2::SecurityGroup::Id
     Description: ECS tasks security group (from Network stack)
@@ -182,8 +182,8 @@ Resources:
         AwsvpcConfiguration:
           AssignPublicIp: DISABLED
           Subnets:
-            - !Ref PrivateSubnet1Id
-            - !Ref PrivateSubnet2Id
+            - !Ref PublicSubnet1Id
+            - !Ref PublicSubnet2Id
           SecurityGroups:
             - !Ref ECSTasksSecurityGroupId
       LoadBalancers:

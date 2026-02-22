@@ -145,8 +145,8 @@ Resources:
         ContainerMemory: !Ref ContainerMemory
         DesiredCount: !Ref DesiredCount
         LogRetentionDays: !Ref LogRetentionDays
-        PrivateSubnet1Id: !GetAtt NetworkStack.Outputs.PublicSubnet1
-        PrivateSubnet2Id: !GetAtt NetworkStack.Outputs.PublicSubnet2
+        PublicSubnet1Id: !GetAtt NetworkStack.Outputs.PublicSubnet1
+        PublicSubnet2Id: !GetAtt NetworkStack.Outputs.PublicSubnet2
         ECSTasksSecurityGroupId: !GetAtt NetworkStack.Outputs.ECSTasksSecurityGroup
         TargetGroupArn: !GetAtt ALBStack.Outputs.TargetGroupArn
       Tags:
