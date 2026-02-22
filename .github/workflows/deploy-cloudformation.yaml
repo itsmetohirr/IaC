@@ -68,7 +68,6 @@ jobs:
           ENVIRONMENT=${{ steps.env.outputs.env }}
           echo "APP_NAME=$APP_NAME"
           echo "ENVIRONMENT=$ENVIRONMENT"
-          echo "STACK_NAME=$STACK_NAME"
           STATUS=$(aws cloudformation describe-stacks \
             --stack-name "$APP_NAME-$ENVIRONMENT" \
             --query "Stacks[0].StackStatus" \
@@ -79,6 +78,9 @@ jobs:
       - name: Delete stack if rollback complete
         if: steps.stack.outputs.status == 'ROLLBACK_COMPLETE'
         run: |
+          ENVIRONMENT=${{ steps.env.outputs.env }}
+          echo "APP_NAME=$APP_NAME"
+          echo "ENVIRONMENT=$ENVIRONMENT"
           aws cloudformation delete-stack --stack-name "$APP_NAME-$ENVIRONMENT"
           aws cloudformation wait stack-delete-complete --stack-name "$APP_NAME-$ENVIRONMENT"
 
