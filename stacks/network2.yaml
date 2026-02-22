@@ -17,9 +17,6 @@ Parameters:
   InternetGatewayId:
     Type: String
 
-  # NatGatewayId:
-  #   Type: String
-
   PublicSubnet1CIDR:
     Type: String
     Default: 10.0.1.0/24
@@ -130,13 +127,6 @@ Resources:
       Tags:
         - Key: Name
           Value: !Sub ${AppName}-private-rt-${TagEnvironment}
-
-  PrivateRoute:
-    Type: AWS::EC2::Route
-    Properties:
-      RouteTableId: !Ref PrivateRouteTable
-      DestinationCidrBlock: 0.0.0.0/0
-      NatGatewayId: !Ref NatGatewayId
 
   PrivateSubnet1Association:
     Type: AWS::EC2::SubnetRouteTableAssociation
