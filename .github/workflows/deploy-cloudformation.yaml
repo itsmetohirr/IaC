@@ -20,9 +20,9 @@ on:
           - prod
 
 env:
-  AWS_REGION: eu-west-1
+  AWS_REGION: us-east-1
   APP_NAME: myapp
-  CFN_ARTIFACTS_BUCKET: ${{ secrets.CFN_ARTIFACTS_BUCKET }}
+  CFN_ARTIFACTS_BUCKET: cf-templates-115m4scnouzqk-us-east-1
 
 jobs:
   deploy:
@@ -37,8 +37,8 @@ jobs:
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
-          aws-region: ${{ env.AWS_REGION }}
+          role-to-assume: arn:aws:iam::727646471471:role/github-actions-oidc
+          aws-region: us-east-1
 
       - name: Determine environment
         id: env
@@ -81,4 +81,3 @@ jobs:
             --region $AWS_REGION \
             --stack-name "$APP_NAME-${{ steps.env.outputs.env }}" \
             --query 'Stacks[0].Outputs' --output table || true
-            
